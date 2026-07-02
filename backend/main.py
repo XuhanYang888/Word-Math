@@ -22,6 +22,33 @@ WORDS = []
 WORD_TO_IDX = {}
 
 
+def get_nearest_neighbors(target_vector: np.ndarray, k: int = 50):
+    global VECTORS, WORDS
+
+    target_vector = np.array(target_vector, dtype=np.float32)
+
+    dot_products = np.dot(VECTORS, target_vector)
+
+    matrix_norms = np.linalg.norm(VECTORS, axis=1)
+    target_norm = np.linalg.norm(target_vector)
+
+    if target_norm == 0:
+        return []
+
+    cosine_similarities = dot_products / (matrix_norms * target_norm)
+
+    top_indices = np.argsort(cosine_similarities)[::-1][:k]
+
+    results = []
+    for idx in top_indices:
+        results.append({
+            "word": WORDS[idx],
+            "similarity": float(cosine_similarities[idx])
+        })
+
+    return results
+
+
 @app.on_event("startup")
 def load_vector_space():
     global VECTORS, WORDS, WORD_TO_IDX
@@ -65,4 +92,23 @@ def get_word_vector(word: str):
         "word": clean_word,
         "index": idx,
         "vector": vector.tolist()
+    }
+
+
+@app.get("/neighbors/{word}")
+def find_word_neighbors(word: str, k: int = 25):
+    clean_word = word.lower().strip()
+
+    if clean_word not in WORD_TO_IDX:
+        raise HTTPException(
+            status_code=404, detail=f"Word '{word}' not found.")
+
+    word_idx = WORD_TO_IDX[clean_word]
+    word_vector = VECTORS[word_idx]
+
+    neighbors = get_nearest_neighbors(word_vector, k=k)
+
+    return {
+        "query_word": clean_word,
+        "neighbors": neighbors
     }
