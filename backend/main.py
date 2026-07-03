@@ -5,6 +5,7 @@ import pickle
 import numpy as np
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from sklearn.decomposition import PCA
 
 app = FastAPI(
     title="Vector Analogy Sandbox API",
@@ -139,9 +140,7 @@ def calculate_analogy(payload: EquationRequest):
     for word in unique_input_words:
         if word not in WORD_TO_IDX:
             raise HTTPException(
-                status_code=404,
-                detail=f"Word '{word}' is out of vocabulary."
-            )
+                status_code=404, detail=f"Word '{word}' is out of vocabulary.")
 
     result_vector = np.zeros(VECTORS.shape[1], dtype=np.float32)
     current_operator = '+'
@@ -159,7 +158,6 @@ def calculate_analogy(payload: EquationRequest):
 
     raw_neighbors = get_nearest_neighbors(
         result_vector, k=k + len(unique_input_words))
-
     filtered_neighbors = [
         n for n in raw_neighbors if n["word"] not in unique_input_words
     ][:k]
@@ -170,7 +168,7 @@ def calculate_analogy(payload: EquationRequest):
         idx = WORD_TO_IDX[word]
         cluster_payload.append({
             "word": word,
-            "vector": VECTORS[idx].tolist(),
+            "vector": VECTORS[idx],
             "type": "input"
         })
 
@@ -179,15 +177,27 @@ def calculate_analogy(payload: EquationRequest):
         idx = WORD_TO_IDX[word]
         cluster_payload.append({
             "word": word,
-            "vector": VECTORS[idx].tolist(),
+            "vector": VECTORS[idx],
             "type": "neighbor"
         })
 
     cluster_payload.append({
         "word": "[RESULT_COORDINATE]",
-        "vector": result_vector.tolist(),
+        "vector": result_vector,
         "type": "math_point"
     })
+
+    high_dim_vectors = [item["vector"] for item in cluster_payload]
+
+    pca = PCA(n_components=3)
+    reduced_coordinates = pca.fit_transform(high_dim_vectors)
+
+    for i, item in enumerate(cluster_payload):
+        item["x"] = float(reduced_coordinates[i][0])
+        item["y"] = float(reduced_coordinates[i][1])
+        item["z"] = float(reduced_coordinates[i][2])
+
+        del item["vector"]
 
     return {
         "equation": raw_equation,
