@@ -1,3 +1,5 @@
+from pydantic import BaseModel
+import re
 import os
 import pickle
 import numpy as np
@@ -111,4 +113,84 @@ def find_word_neighbors(word: str, k: int = 25):
     return {
         "query_word": clean_word,
         "neighbors": neighbors
+    }
+
+
+class EquationRequest(BaseModel):
+    equation: str
+    k: int = 25
+
+
+@app.post("/api/analogy")
+def calculate_analogy(payload: EquationRequest):
+    global VECTORS, WORD_TO_IDX, WORDS
+
+    raw_equation = payload.equation
+    k = payload.k
+
+    tokens = re.findall(r'[\w]+|[\+\-]', raw_equation.lower().strip())
+    if not tokens:
+        raise HTTPException(
+            status_code=400, detail="Empty equation string provided.")
+
+    input_words = [t for t in tokens if t not in ['+', '-']]
+    unique_input_words = list(set(input_words))
+
+    for word in unique_input_words:
+        if word not in WORD_TO_IDX:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Word '{word}' is out of vocabulary."
+            )
+
+    result_vector = np.zeros(VECTORS.shape[1], dtype=np.float32)
+    current_operator = '+'
+
+    for token in tokens:
+        if token in ['+', '-']:
+            current_operator = token
+        else:
+            word_idx = WORD_TO_IDX[token]
+            word_vec = VECTORS[word_idx]
+            if current_operator == '+':
+                result_vector += word_vec
+            elif current_operator == '-':
+                result_vector -= word_vec
+
+    raw_neighbors = get_nearest_neighbors(
+        result_vector, k=k + len(unique_input_words))
+
+    filtered_neighbors = [
+        n for n in raw_neighbors if n["word"] not in unique_input_words
+    ][:k]
+
+    cluster_payload = []
+
+    for word in unique_input_words:
+        idx = WORD_TO_IDX[word]
+        cluster_payload.append({
+            "word": word,
+            "vector": VECTORS[idx].tolist(),
+            "type": "input"
+        })
+
+    for neighbor in filtered_neighbors:
+        word = neighbor["word"]
+        idx = WORD_TO_IDX[word]
+        cluster_payload.append({
+            "word": word,
+            "vector": VECTORS[idx].tolist(),
+            "type": "neighbor"
+        })
+
+    cluster_payload.append({
+        "word": "[RESULT_COORDINATE]",
+        "vector": result_vector.tolist(),
+        "type": "math_point"
+    })
+
+    return {
+        "equation": raw_equation,
+        "cluster_size": len(cluster_payload),
+        "cluster": cluster_payload
     }
