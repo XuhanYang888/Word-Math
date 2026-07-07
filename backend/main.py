@@ -182,7 +182,7 @@ def calculate_analogy(payload: EquationRequest):
         })
 
     cluster_payload.append({
-        "word": "[RESULT_COORDINATE]",
+        "word": "RESULT",
         "vector": result_vector,
         "type": "math_point"
     })

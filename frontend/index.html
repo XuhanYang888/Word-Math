@@ -2,12 +2,690 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>frontend</title>
+    <title>Word Math</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              gray: { 850: "#1a202c", 900: "#111827", 950: "#0b0f19" },
+              gold: "#fbbf24",
+            },
+            fontFamily: {
+              sans: ["Inter", "system-ui", "sans-serif"],
+              mono: ["Fira Code", "monospace"],
+            },
+          },
+        },
+      };
+    </script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Fira+Code&display=swap"
+      rel="stylesheet"
+    />
+
+    <style>
+      body {
+        background-color: #0b0f19;
+        background-image: radial-gradient(
+          circle at 50% 0%,
+          #1a202c 0%,
+          #0b0f19 75%
+        );
+        font-family: "Inter", sans-serif;
+      }
+
+      #viewport-container {
+        box-shadow:
+          0 0 50px -15px rgba(249, 115, 22, 0.15),
+          inset 0 0 20px rgba(0, 0, 0, 0.5);
+      }
+
+      .webgl-label {
+        position: absolute;
+        top: 0;
+        left: 0;
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+        transition: opacity 0.2s;
+        will-change: transform;
+      }
+    </style>
   </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+  <body
+    class="min-h-screen flex flex-col text-gray-200 overflow-x-hidden selection:bg-orange-500/30"
+  >
+    <main
+      class="w-11/12 max-w-5xl mx-auto flex flex-col flex-1 py-12 justify-center gap-8 relative"
+    >
+      <header class="text-center space-y-2">
+        <h1
+          class="text-3xl md:text-4xl font-semibold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-gold via-orange-500 to-red-500"
+        >
+          Word Math
+        </h1>
+        <p class="text-gray-400 text-sm md:text-base font-light">
+          Interactive word embedding evaluator
+        </p>
+      </header>
+      <div
+        id="viewport-container"
+        class="relative w-full h-[450px] md:h-[550px] rounded-3xl border border-gray-800 bg-gray-950/50 backdrop-blur-md overflow-hidden flex items-center justify-center group"
+      >
+        <canvas
+          id="webgl-canvas"
+          class="w-full h-full cursor-grab active:cursor-grabbing outline-none"
+        ></canvas>
+
+        <div
+          id="labels-container"
+          class="absolute inset-0 pointer-events-none overflow-hidden"
+        ></div>
+
+        <div
+          class="absolute top-4 left-6 text-xs font-mono text-gray-500 pointer-events-none"
+        >
+          <span class="text-orange-500/80">Dims:</span> 100<br />
+          <span class="text-orange-500/80">Model:</span> GloVe 6B
+        </div>
+
+        <div
+          class="absolute top-4 right-6 flex flex-col items-end gap-2 pointer-events-none z-10 min-w-[12rem]"
+        >
+          <button
+            id="spin-toggle"
+            class="pointer-events-auto text-xs font-mono text-gray-300 hover:text-white bg-gray-900/60 hover:bg-gray-800 border border-gray-700/80 rounded px-3 py-1.5 backdrop-blur-sm transition-all focus:outline-none focus:ring-1 focus:ring-orange-500/50 cursor-pointer flex items-center gap-2"
+          >
+            <span
+              id="spin-status-indicator"
+              class="w-2 h-2 rounded-full bg-orange-500 animate-pulse"
+            ></span>
+            <span id="spin-label">Auto-Spin: ON</span>
+          </button>
+
+          <div
+            class="pointer-events-auto flex items-center gap-2 text-xs font-mono text-gray-400 bg-gray-900/60 border border-gray-700/80 rounded px-2 py-1.5 backdrop-blur-sm w-full justify-between"
+          >
+            <span>Show labels:</span>
+            <select
+              id="label-select"
+              class="bg-transparent text-gray-200 outline-none cursor-pointer appearance-none text-right focus:text-orange-400 transition-colors"
+            >
+              <option value="all">all</option>
+              <option value="10">top 10</option>
+              <option value="5">top 5</option>
+            </select>
+          </div>
+
+          <div
+            id="top-words-container"
+            class="pointer-events-auto hidden w-full bg-gray-900/60 border border-gray-700/80 rounded p-3 backdrop-blur-sm text-xs font-mono flex-col gap-2 mt-1"
+          >
+            <div
+              class="text-gray-500 border-b border-gray-700/50 pb-1.5 font-sans font-medium tracking-wide text-[10px] uppercase"
+            >
+              Closest Matches
+            </div>
+            <ul id="top-words-list" class="space-y-1.5"></ul>
+          </div>
+        </div>
+
+        <div
+          class="absolute bottom-4 right-6 text-xs text-gray-600 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+        >
+          Scroll to zoom, Drag to rotate
+        </div>
+      </div>
+
+      <div
+        class="w-full max-w-3xl mx-auto flex flex-col items-center gap-3 relative"
+      >
+        <div class="flex items-center w-full gap-3 md:gap-4 relative">
+          <div class="relative flex-1 group">
+            <div
+              class="absolute -inset-0.5 bg-gradient-to-r from-gold via-orange-500 to-red-600 rounded-full blur opacity-20 group-focus-within:opacity-50 transition duration-500"
+            ></div>
+            <input
+              id="equation-input"
+              type="text"
+              class="relative w-full bg-gray-900 border border-gray-700/80 text-white text-lg rounded-full px-6 py-4 outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/50 placeholder-gray-600 font-mono shadow-inner transition-all"
+              placeholder="e.g., king - man + woman"
+            />
+          </div>
+
+          <button
+            id="run-btn"
+            class="relative flex items-center justify-center w-14 h-14 md:w-16 md:h-16 rounded-full bg-gradient-to-br from-orange-400 via-orange-600 to-red-600 hover:from-orange-300 hover:to-red-500 text-white shadow-lg shadow-orange-600/20 hover:shadow-orange-500/40 transform hover:scale-105 active:scale-95 transition-all outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-orange-500 disabled:opacity-50 disabled:pointer-events-none"
+          >
+            <svg
+              id="icon-play"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              class="w-6 h-6 ml-1"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M4.5 5.653c0-1.426 1.529-2.33 2.779-1.643l11.54 6.348c1.295.712 1.295 2.573 0 3.285L7.28 19.991c-1.25.687-2.779-.217-2.779-1.643V5.653z"
+                clip-rule="evenodd"
+              />
+            </svg>
+
+            <svg
+              id="icon-load"
+              class="animate-spin h-6 w-6 hidden"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              ></circle>
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
+            </svg>
+          </button>
+        </div>
+
+        <button
+          onclick="surpriseMe()"
+          class="mt-2 text-sm text-gray-500 hover:text-orange-400 transition-colors duration-300 bg-transparent border-none cursor-pointer flex items-center gap-1.5 focus:outline-none group"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            class="w-4 h-4 group-hover:animate-spin"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+          surprise me
+        </button>
+      </div>
+
+      <div
+        id="error-toast"
+        class="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-red-950/90 border border-red-500/50 text-red-200 px-6 py-3 rounded-full shadow-lg backdrop-blur-sm transition-opacity duration-300 opacity-0 pointer-events-none flex items-center gap-2"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          class="h-5 w-5 text-red-400"
+          viewBox="0 0 20 20"
+          fill="currentColor"
+        >
+          <path
+            fill-rule="evenodd"
+            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+            clip-rule="evenodd"
+          />
+        </svg>
+        <span id="error-msg" class="text-sm font-medium">Error</span>
+      </div>
+    </main>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+      const API_BASE = "http://localhost:8000";
+
+      const inputField = document.getElementById("equation-input");
+      const runBtn = document.getElementById("run-btn");
+      const iconPlay = document.getElementById("icon-play");
+      const iconLoad = document.getElementById("icon-load");
+      const errorToast = document.getElementById("error-toast");
+      const errorMsg = document.getElementById("error-msg");
+      const labelsContainer = document.getElementById("labels-container");
+
+      const labelSelect = document.getElementById("label-select");
+      let currentLabelFilter = labelSelect.value;
+      labelSelect.addEventListener("change", (e) => {
+        currentLabelFilter = e.target.value;
+      });
+
+      const presets = [
+        "king - man + woman",
+        "paris - france + japan",
+        "doctor - hospital + school",
+        "einstein - physics + art",
+        "better - good + bad",
+      ];
+
+      function surpriseMe() {
+        const randomPreset =
+          presets[Math.floor(Math.random() * presets.length)];
+        inputField.style.opacity = "0";
+        setTimeout(() => {
+          inputField.value = randomPreset;
+          inputField.style.opacity = "1";
+          executeEquation();
+        }, 150);
+      }
+
+      inputField.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") executeEquation();
+      });
+
+      runBtn.addEventListener("click", executeEquation);
+
+      function showError(msg) {
+        errorMsg.innerText = msg;
+        errorToast.classList.remove("opacity-0");
+        setTimeout(() => {
+          errorToast.classList.add("opacity-0");
+        }, 4000);
+      }
+
+      async function executeEquation() {
+        const equation = inputField.value.trim();
+        if (!equation) return;
+
+        inputField.disabled = true;
+        runBtn.disabled = true;
+        iconPlay.classList.add("hidden");
+        iconLoad.classList.remove("hidden");
+
+        try {
+          const response = await fetch(`${API_BASE}/api/analogy`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ equation: equation, k: 30 }),
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.detail || "Failed to calculate analogy.");
+          }
+
+          plotCluster(data.cluster);
+        } catch (err) {
+          console.error(err);
+          showError(err.message);
+        } finally {
+          inputField.disabled = false;
+          runBtn.disabled = false;
+          iconLoad.classList.add("hidden");
+          iconPlay.classList.remove("hidden");
+          inputField.focus();
+        }
+      }
+
+      const canvas = document.getElementById("webgl-canvas");
+      const container = document.getElementById("viewport-container");
+
+      const scene = new THREE.Scene();
+      const renderer = new THREE.WebGLRenderer({
+        canvas: canvas,
+        alpha: true,
+        antialias: true,
+      });
+
+      const camera = new THREE.PerspectiveCamera(
+        45,
+        container.clientWidth / container.clientHeight,
+        0.1,
+        1000,
+      );
+      camera.position.set(20, 15, 30);
+
+      function resizeRendererToDisplaySize(renderer) {
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+        const needResize = canvas.width !== width || canvas.height !== height;
+        if (needResize) {
+          renderer.setSize(width, height, false);
+          camera.aspect = width / height;
+          camera.updateProjectionMatrix();
+        }
+      }
+
+      let isAutoSpinning = true;
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controls.autoRotate = isAutoSpinning;
+      controls.autoRotateSpeed = 0.5;
+      controls.enablePan = false;
+      controls.minDistance = 5;
+      controls.maxDistance = 150;
+
+      const axisLength = 40;
+      const axesMaterial = new THREE.LineBasicMaterial({
+        color: 0x6b7280,
+        transparent: true,
+        opacity: 0.25,
+      });
+      const axesPoints = [];
+      axesPoints.push(
+        new THREE.Vector3(-axisLength, 0, 0),
+        new THREE.Vector3(axisLength, 0, 0),
+      );
+      axesPoints.push(
+        new THREE.Vector3(0, -axisLength, 0),
+        new THREE.Vector3(0, axisLength, 0),
+      );
+      axesPoints.push(
+        new THREE.Vector3(0, 0, -axisLength),
+        new THREE.Vector3(0, 0, axisLength),
+      );
+      const axesGeometry = new THREE.BufferGeometry().setFromPoints(axesPoints);
+      scene.add(new THREE.LineSegments(axesGeometry, axesMaterial));
+
+      const particleCount = 600;
+      const bgGeo = new THREE.BufferGeometry();
+      const bgPos = new Float32Array(particleCount * 3);
+      for (let i = 0; i < particleCount; i++) {
+        const r = 35 * Math.cbrt(Math.random());
+        const theta = Math.random() * 2 * Math.PI;
+        const phi = Math.acos(2 * Math.random() - 1);
+        bgPos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+        bgPos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+        bgPos[i * 3 + 2] = r * Math.cos(phi);
+      }
+      bgGeo.setAttribute("position", new THREE.BufferAttribute(bgPos, 3));
+      const bgMat = new THREE.PointsMaterial({
+        color: 0x4b5563,
+        size: 0.67,
+        transparent: true,
+        opacity: 0.67,
+      });
+      const bgParticles = new THREE.Points(bgGeo, bgMat);
+      scene.add(bgParticles);
+
+      let activeClusterGroup = new THREE.Group();
+      scene.add(activeClusterGroup);
+      let activeLabels = [];
+
+      const colorMap = {
+        input: 0xfbbf24,
+        math_point: 0xef4444,
+        neighbor: 0xf97316,
+      };
+
+      function plotCluster(clusterData) {
+        while (activeClusterGroup.children.length > 0) {
+          activeClusterGroup.remove(activeClusterGroup.children[0]);
+        }
+        labelsContainer.innerHTML = "";
+        activeLabels = [];
+
+        let maxCoord = 0.0001;
+        let mathPointData = null;
+        clusterData.forEach((pt) => {
+          maxCoord = Math.max(
+            maxCoord,
+            Math.abs(pt.x),
+            Math.abs(pt.y),
+            Math.abs(pt.z),
+          );
+          if (pt.type === "math_point") mathPointData = pt;
+        });
+        const scaleFactor = 15 / maxCoord;
+
+        let mathPointPos = new THREE.Vector3(0, 0, 0);
+        if (mathPointData) {
+          mathPointPos.set(
+            mathPointData.x * scaleFactor,
+            mathPointData.y * scaleFactor,
+            mathPointData.z * scaleFactor,
+          );
+        }
+
+        let maxDist = 0.0001;
+        clusterData.forEach((pt) => {
+          if (pt.type === "neighbor") {
+            const pos = new THREE.Vector3(
+              pt.x * scaleFactor,
+              pt.y * scaleFactor,
+              pt.z * scaleFactor,
+            );
+            const dist = pos.distanceTo(mathPointPos);
+            if (dist > maxDist) maxDist = dist;
+          }
+        });
+
+        const baseOrange = new THREE.Color(0xf97316);
+        const baseGray = new THREE.Color(0x6b7280);
+
+        let neighborRank = 0;
+        let top5Words = [];
+
+        clusterData.forEach((item) => {
+          const scaledPos = new THREE.Vector3(
+            item.x * scaleFactor,
+            item.y * scaleFactor,
+            item.z * scaleFactor,
+          );
+
+          const isMainNode =
+            item.type === "input" || item.type === "math_point";
+
+          let color = new THREE.Color(colorMap[item.type] || 0xffffff);
+          let currentRank = -1;
+
+          if (item.type === "neighbor") {
+            neighborRank++;
+            currentRank = neighborRank;
+
+            if (currentRank <= 5) {
+              top5Words.push(item.word);
+            }
+
+            const dist = scaledPos.distanceTo(mathPointPos);
+            const ratio = dist / maxDist;
+
+            color = baseOrange.clone().lerp(baseGray, ratio * 0.85);
+          }
+
+          const radius = isMainNode ? 0.6 : 0.3;
+          const geo = new THREE.SphereGeometry(radius, 16, 16);
+          const mat = new THREE.MeshBasicMaterial({ color: color });
+          const mesh = new THREE.Mesh(geo, mat);
+          mesh.position.copy(scaledPos);
+
+          if (isMainNode) {
+            const glowGeo = new THREE.SphereGeometry(radius * 2, 16, 16);
+            const glowMat = new THREE.MeshBasicMaterial({
+              color: color,
+              transparent: true,
+              opacity: 0.3,
+            });
+            const glowMesh = new THREE.Mesh(glowGeo, glowMat);
+            mesh.add(glowMesh);
+          }
+
+          activeClusterGroup.add(mesh);
+
+          const labelDiv = document.createElement("div");
+          labelDiv.className =
+            "webgl-label font-mono px-2 py-0.5 rounded text-xs backdrop-blur-sm border shadow-lg transition-colors";
+          labelDiv.textContent = item.word;
+
+          if (item.type === "input") {
+            labelDiv.classList.add(
+              "bg-gray-900/80",
+              "text-gold",
+              "border-gold/50",
+              "z-20",
+              "font-bold",
+            );
+          } else if (item.type === "math_point") {
+            labelDiv.classList.add(
+              "bg-red-950/80",
+              "text-red-400",
+              "border-red-500/50",
+              "z-30",
+              "font-bold",
+              "animate-pulse",
+            );
+            labelDiv.textContent = item.word;
+          } else {
+            labelDiv.classList.add(
+              "bg-gray-900/50",
+              "text-gray-400",
+              "border-gray-700/50",
+              "z-10",
+              "text-[10px]",
+            );
+          }
+
+          labelsContainer.appendChild(labelDiv);
+
+          activeLabels.push({
+            position: scaledPos,
+            element: labelDiv,
+            isMainNode: isMainNode,
+            type: item.type,
+            rank: currentRank,
+          });
+        });
+
+        const topWordsContainer = document.getElementById(
+          "top-words-container",
+        );
+        const topWordsList = document.getElementById("top-words-list");
+
+        if (top5Words.length > 0) {
+          topWordsContainer.classList.remove("hidden");
+          topWordsContainer.classList.add("flex");
+          topWordsList.innerHTML = top5Words
+            .map(
+              (w, idx) => `
+            <li class="flex items-center justify-between text-gray-300">
+              <span class="text-gray-500 text-[10px]">#${idx + 1}</span>
+              <span class="text-orange-400 font-medium">${w}</span>
+            </li>
+          `,
+            )
+            .join("");
+        } else {
+          topWordsContainer.classList.add("hidden");
+          topWordsContainer.classList.remove("flex");
+        }
+
+        const sphericalDotCount = 500;
+        const sphereGeo = new THREE.BufferGeometry();
+        const spherePos = new Float32Array(sphericalDotCount * 3);
+        const sphereRadius = 16;
+
+        for (let i = 0; i < sphericalDotCount; i++) {
+          const r = sphereRadius * Math.cbrt(Math.random());
+          const theta = Math.random() * 2 * Math.PI;
+          const phi = Math.acos(2 * Math.random() - 1);
+
+          spherePos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+          spherePos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+          spherePos[i * 3 + 2] = r * Math.cos(phi);
+        }
+
+        sphereGeo.setAttribute(
+          "position",
+          new THREE.BufferAttribute(spherePos, 3),
+        );
+        const sphereMat = new THREE.PointsMaterial({
+          color: 0x4b5563,
+          size: 0.15,
+          transparent: true,
+          opacity: 0.4,
+        });
+        const sphericalPoints = new THREE.Points(sphereGeo, sphereMat);
+        activeClusterGroup.add(sphericalPoints);
+      }
+
+      const spinToggleBtn = document.getElementById("spin-toggle");
+      const spinLabel = document.getElementById("spin-label");
+      const spinStatusIndicator = document.getElementById(
+        "spin-status-indicator",
+      );
+
+      spinToggleBtn.addEventListener("click", () => {
+        isAutoSpinning = !isAutoSpinning;
+        controls.autoRotate = isAutoSpinning;
+
+        if (isAutoSpinning) {
+          spinLabel.innerText = "Auto-Spin: ON";
+          spinStatusIndicator.classList.add("bg-orange-500", "animate-pulse");
+          spinStatusIndicator.classList.remove("bg-gray-600");
+        } else {
+          spinLabel.innerText = "Auto-Spin: OFF";
+          spinStatusIndicator.classList.remove(
+            "bg-orange-500",
+            "animate-pulse",
+          );
+          spinStatusIndicator.classList.add("bg-gray-600");
+        }
+      });
+
+      const tempV = new THREE.Vector3();
+      function animate() {
+        requestAnimationFrame(animate);
+        resizeRendererToDisplaySize(renderer);
+
+        controls.update();
+
+        if (isAutoSpinning) {
+          bgParticles.rotation.y += 0.001;
+          activeClusterGroup.rotation.y += 0.0;
+        }
+
+        const halfWidth = canvas.clientWidth / 2;
+        const halfHeight = canvas.clientHeight / 2;
+
+        activeLabels.forEach((lbl) => {
+          tempV.copy(lbl.position);
+          tempV.applyMatrix4(activeClusterGroup.matrixWorld);
+          tempV.project(camera);
+
+          let shouldShow = true;
+          if (lbl.type === "neighbor") {
+            if (currentLabelFilter === "10" && lbl.rank > 10)
+              shouldShow = false;
+            if (currentLabelFilter === "5" && lbl.rank > 5) shouldShow = false;
+          }
+
+          if (tempV.z > 1 || !shouldShow) {
+            lbl.element.style.display = "none";
+          } else {
+            lbl.element.style.display = "block";
+            const x = tempV.x * halfWidth + halfWidth;
+            const y = -(tempV.y * halfHeight) + halfHeight;
+
+            lbl.element.style.transform = `translate(-50%, -50%) translate(${x}px, ${y - 15}px)`;
+
+            if (!lbl.isMainNode) {
+              if (currentLabelFilter === "all") {
+                const distFromCenter = Math.sqrt(
+                  Math.pow(tempV.x, 2) + Math.pow(tempV.y, 2),
+                );
+                lbl.element.style.opacity = distFromCenter > 0.85 ? "0" : "1";
+              } else {
+                lbl.element.style.opacity = "1";
+              }
+            }
+          }
+        });
+
+        renderer.render(scene, camera);
+      }
+
+      animate();
+    </script>
   </body>
 </html>
