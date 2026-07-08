@@ -2,6 +2,8 @@
 
 ## Project Description
 
+**Try it out! [link](https://huggingface.co/spaces/xuhanY/Word-Math)**
+
 An interactive word embedding sandbox. It uses a local GloVe vector space where you can enter simple word equations like `king - man + woman`. The backend evaluates the expression, finds the nearest neighbors in embedding space, and projects the result onto an interactive 3D view.
 
 ## Features
