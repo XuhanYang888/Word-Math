@@ -2,9 +2,9 @@ import os
 import pickle
 import numpy as np
 
-RAW_GLOVE_PATH = "../data/glove.6B.100d.txt"
-OUTPUT_VECTORS_PATH = "../data/vectors.npy"
-OUTPUT_METADATA_PATH = "../data/metadata.pkl"
+RAW_GLOVE_PATH = "data/glove.6B.100d.txt"
+OUTPUT_VECTORS_PATH = "data/vectors.npy"
+OUTPUT_METADATA_PATH = "data/metadata.pkl"
 
 VOCAB_SIZE = 50000
 VECTOR_DIM = 100

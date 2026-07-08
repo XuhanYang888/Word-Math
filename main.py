@@ -5,6 +5,7 @@ import pickle
 import numpy as np
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from sklearn.decomposition import PCA
 
 app = FastAPI(
@@ -56,8 +57,8 @@ def get_nearest_neighbors(target_vector: np.ndarray, k: int = 50):
 def load_vector_space():
     global VECTORS, WORDS, WORD_TO_IDX
 
-    vectors_path = "../data/vectors.npy"
-    metadata_path = "../data/metadata.pkl"
+    vectors_path = "data/vectors.npy"
+    metadata_path = "data/metadata.pkl"
 
     print("Loading vector space into memory...")
 
@@ -76,6 +77,11 @@ def load_vector_space():
 
 
 @app.get("/")
+def serve_frontend():
+    return FileResponse("frontend/index.html")
+
+
+@app.get("/api/status")
 def read_root():
     return {"status": "online", "vocab_size": len(WORDS), "dimensions": VECTORS.shape[1] if VECTORS is not None else 0}
 
