@@ -87,8 +87,8 @@
         <div
           class="absolute top-4 left-6 text-xs font-mono text-gray-500 pointer-events-none"
         >
-          <span class="text-orange-500/80">Dims:</span> 100<br />
-          <span class="text-orange-500/80">Model:</span> GloVe 6B
+          <span class="text-orange-500/80">Dims:</span> 300<br />
+          <span class="text-orange-500/80">Model:</span> GloVe 840B
         </div>
 
         <div
@@ -243,7 +243,7 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 
     <script>
-      const API_BASE = "";
+      const API_BASE = "http://localhost:8000";
 
       const inputField = document.getElementById("equation-input");
       const runBtn = document.getElementById("run-btn");
@@ -488,10 +488,8 @@
               top5Words.push(item.word);
             }
 
-            const dist = scaledPos.distanceTo(mathPointPos);
-            const ratio = dist / maxDist;
-
-            color = baseOrange.clone().lerp(baseGray, ratio * 0.85);
+            const ratio = (currentRank - 1) / 30;
+            color = baseOrange.clone().lerp(baseGray, ratio * 0.9);
           }
 
           const radius = isMainNode ? 0.6 : 0.3;

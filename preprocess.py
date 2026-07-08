@@ -2,12 +2,12 @@ import os
 import pickle
 import numpy as np
 
-RAW_GLOVE_PATH = "data/glove.6B.100d.txt"
+RAW_GLOVE_PATH = "data/glove.840B.300d.txt"
 OUTPUT_VECTORS_PATH = "data/vectors.npy"
 OUTPUT_METADATA_PATH = "data/metadata.pkl"
 
-VOCAB_SIZE = 50000
-VECTOR_DIM = 100
+VOCAB_SIZE = 200000
+VECTOR_DIM = 300
 
 
 def preprocess_glove():
@@ -23,35 +23,48 @@ def preprocess_glove():
     word_to_idx = {}
 
     with open(RAW_GLOVE_PATH, 'r', encoding='utf-8') as f:
+        count = 0
         for idx, line in enumerate(f):
             if idx >= VOCAB_SIZE:
                 break
 
-            parts = line.strip().split(' ')
-            word = parts[0]
+            parts = line.rstrip().split(' ')
+            if len(parts) < VECTOR_DIM + 1:
+                continue
+
+            vector_parts = parts[-VECTOR_DIM:]
+            word_parts = parts[:-VECTOR_DIM]
+            raw_word = " ".join(word_parts).strip()
+
+            word = raw_word.lower()
+
+            if not word or word in word_to_idx:
+                continue
 
             try:
-                vector = [float(x) for x in parts[1:]]
+                vector = np.array(vector_parts, dtype=np.float32)
+                if vector.shape[0] != VECTOR_DIM:
+                    continue
+
+                words.append(word)
+                vectors.append(vector)
+                word_to_idx[word] = count
+                count += 1
+
+                if count % 20000 == 0:
+                    print(
+                        f"Successfully processed {count}/{VOCAB_SIZE} unique tokens...")
+
             except ValueError:
                 continue
 
-            words.append(word)
-            vectors.append(vector)
-            word_to_idx[word] = idx
-
-            if (idx + 1) % 10000 == 0:
-                print(f"Parsed {idx + 1}/{VOCAB_SIZE} words...")
-
     vectors_matrix = np.array(vectors, dtype=np.float32)
-
-    print("Saving optimized binary files to /data...")
+    print(
+        f"Saving {vectors_matrix.shape[0]} optimized binary files to /data...")
 
     np.save(OUTPUT_VECTORS_PATH, vectors_matrix)
 
-    metadata = {
-        "words": words,
-        "word_to_idx": word_to_idx
-    }
+    metadata = {"words": words, "word_to_idx": word_to_idx}
     with open(OUTPUT_METADATA_PATH, 'wb') as f:
         pickle.dump(metadata, f)
 
