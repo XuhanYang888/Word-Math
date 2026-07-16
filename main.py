@@ -3,6 +3,7 @@ import re
 import os
 import pickle
 import numpy as np
+import urllib.request
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -59,6 +60,20 @@ def load_vector_space():
 
     vectors_path = "data/vectors.npy"
     metadata_path = "data/metadata.pkl"
+
+    github_url = "https://github.com/XuhanYang888/Word-Math/raw/main"
+
+    for file_path in [vectors_path, metadata_path]:
+        if os.path.exists(file_path) and os.path.getsize(file_path) < 2048:
+            print(
+                f"LFS pointer detected for {file_path}. Downloading real data from GitHub...")
+            try:
+                urllib.request.urlretrieve(
+                    f"{github_url}/{file_path}", file_path)
+                print(f"Successfully downloaded real {file_path}")
+            except Exception as e:
+                raise RuntimeError(
+                    f"Failed to download {file_path}. Is your repo private? Error: {e}")
 
     print("Loading vector space into memory...")
 
