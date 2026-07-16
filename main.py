@@ -4,6 +4,7 @@ import os
 import pickle
 import numpy as np
 import urllib.request
+import tempfile
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -60,30 +61,42 @@ def load_vector_space():
 
     vectors_path = "data/vectors.npy"
     metadata_path = "data/metadata.pkl"
+    final_vectors_path = vectors_path
+    final_metadata_path = metadata_path
 
     github_url = "https://github.com/XuhanYang888/Word-Math/raw/main"
 
+    temp_dir = tempfile.gettempdir()
+
     for file_path in [vectors_path, metadata_path]:
         if os.path.exists(file_path) and os.path.getsize(file_path) < 2048:
+            filename = os.path.basename(file_path)
+            tmp_download_path = os.path.join(temp_dir, filename)
+
             print(
-                f"LFS pointer detected for {file_path}. Downloading real data from GitHub...")
+                f"LFS pointer detected. Downloading real {filename} to {tmp_download_path}...")
             try:
                 urllib.request.urlretrieve(
-                    f"{github_url}/{file_path}", file_path)
-                print(f"Successfully downloaded real {file_path}")
+                    f"{github_url}/{file_path}", tmp_download_path)
+                print(f"Successfully downloaded real {filename}")
+
+                if filename == "vectors.npy":
+                    final_vectors_path = tmp_download_path
+                elif filename == "metadata.pkl":
+                    final_metadata_path = tmp_download_path
+
             except Exception as e:
                 raise RuntimeError(
                     f"Failed to download {file_path}. Is your repo private? Error: {e}")
 
     print("Loading vector space into memory...")
 
-    if not os.path.exists(vectors_path) or not os.path.exists(metadata_path):
-        raise RuntimeError(
-            "Missing preprocessed files! Run preprocess.py first.")
+    if not os.path.exists(final_vectors_path) or not os.path.exists(final_metadata_path):
+        raise RuntimeError("Missing preprocessed files!")
 
-    VECTORS = np.load(vectors_path, allow_pickle=True)
+    VECTORS = np.load(final_vectors_path, allow_pickle=True)
 
-    with open(metadata_path, "rb") as f:
+    with open(final_metadata_path, "rb") as f:
         metadata = pickle.load(f)
         WORDS = metadata["words"]
         WORD_TO_IDX = metadata["word_to_idx"]
