@@ -66,7 +66,7 @@ def load_vector_space():
         raise RuntimeError(
             "Missing preprocessed files! Run preprocess.py first.")
 
-    VECTORS = np.load(vectors_path)
+    VECTORS = np.load(vectors_path, allow_pickle=True)
 
     with open(metadata_path, "rb") as f:
         metadata = pickle.load(f)
